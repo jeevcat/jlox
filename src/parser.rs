@@ -47,9 +47,13 @@ impl<'a> Parser<'a> {
         if self.check(token_type) {
             return Ok(self.advance());
         }
-        match token_type {
-            TokenType::Eof => Err(anyhow!("{} at end", message)),
-            _ => Err(anyhow!("{} at '{}'", message, self.peek().lexeme)),
+        Err(self.error(self.peek(), message))
+    }
+
+    fn error(&self, token: &Token, message: &str) -> anyhow::Error {
+        match token.token_type {
+            TokenType::Eof => (anyhow!("{} at end", message)),
+            _ => (anyhow!("{} at '{}'", message, self.peek().lexeme)),
         }
     }
 
@@ -152,7 +156,7 @@ impl<'a> Parser<'a> {
             TokenType::False => Ok(Expr::Literal(Literal::False)),
             TokenType::Nil => Ok(Expr::Literal(Literal::Nil)),
             TokenType::True => Ok(Expr::Literal(Literal::True)),
-            t => Err(anyhow!("Unexpected token {:?}", t)),
+            _ => Err(self.error(self.peek(), "Expect expression")),
         }
     }
 }
