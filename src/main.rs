@@ -4,10 +4,14 @@ use std::{
     process,
 };
 
-mod scanner;
+use log::error;
+
 mod expr;
+mod parser;
+mod scanner;
 
 fn main() {
+    pretty_env_logger::init();
     let args: Vec<String> = env::args().collect();
     if args.len() > 2 {
         println!("Usage: jlox [script]");
@@ -39,8 +43,22 @@ fn run_prompt() {
 }
 
 fn run(source: &str) {
-    let tokens = scanner::scan_tokens(source).unwrap();
-    for token in tokens.iter() {
-        dbg!(token);
+    let tokens = scanner::scan_tokens(source);
+    match tokens {
+        Ok(tokens) => {
+            let parser = parser::Parser::new(tokens);
+            let expression = parser.parse();
+            match expression {
+                Ok(expression) => {
+                    dbg!(expression);
+                }
+                Err(e) => {
+                    error!("{}", e);
+                }
+            }
+        }
+        Err(e) => {
+            error!("{}", e);
+        }
     }
 }

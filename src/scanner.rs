@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use phf::phf_map;
 use std::fmt;
 
@@ -20,7 +21,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "while" => TokenType::While,
 };
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType<'a> {
     // Single-character tokens.
     LeftParen,
@@ -73,6 +74,7 @@ pub enum TokenType<'a> {
     Eof,
 }
 
+#[derive(Clone)]
 pub struct Token<'a> {
     pub token_type: TokenType<'a>,
     pub lexeme: &'a str,
@@ -90,29 +92,24 @@ impl<'a> fmt::Debug for Token<'a> {
     }
 }
 
-pub fn scan_tokens(input: &str) -> Result<Vec<Token>, String> {
+pub fn scan_tokens(input: &str) -> Result<Vec<Token>> {
     let mut scanner = Scanner {
         source: input,
         tokens: vec![],
-        err: None,
         start: 0,
         current: 0,
         line: 1,
         col: 0,
     };
 
-    scanner.scan_tokens();
+    scanner.scan_tokens()?;
 
-    match scanner.err {
-        Some(err) => Err(err),
-        None => Ok(scanner.tokens),
-    }
+    Ok(scanner.tokens)
 }
 
 struct Scanner<'a> {
     source: &'a str,
     tokens: Vec<Token<'a>>,
-    err: Option<String>,
     start: usize,
     current: usize,
     line: usize,
@@ -120,21 +117,20 @@ struct Scanner<'a> {
 }
 
 impl<'a> Scanner<'a> {
-    fn scan_tokens(&mut self) {
-        while !self.done() {
+    fn scan_tokens(&mut self) -> Result<()> {
+        while !self.is_at_end() {
             self.start = self.current;
-            self.scan_token();
+            self.scan_token()?;
         }
 
-        match self.err {
-            Some(_) => {}
-            None => self.tokens.push(Token {
-                token_type: TokenType::Eof,
-                lexeme: "",
-                line: self.line,
-                col: self.col,
-            }),
-        }
+        self.tokens.push(Token {
+            token_type: TokenType::Eof,
+            lexeme: "",
+            line: self.line,
+            col: self.col,
+        });
+
+        Ok(())
     }
 
     fn advance(&mut self) -> char {
@@ -144,7 +140,7 @@ impl<'a> Scanner<'a> {
         char::from(self.source.as_bytes()[self.current - 1])
     }
 
-    fn scan_token(&mut self) {
+    fn scan_token(&mut self) -> Result<()> {
         let c = self.advance();
 
         match c {
@@ -206,17 +202,18 @@ impl<'a> Scanner<'a> {
                 self.line += 1;
                 self.col = 0
             }
-            '"' => self.string(),
+            '"' => self.string()?,
             _ => {
                 if Scanner::is_decimal_digit(c) {
                     self.number()
                 } else if Scanner::is_alpha(c) {
                     self.identifier()
                 } else {
-                    self.err = Some(format!("scanner can't handle {}", c))
+                    return Err(anyhow!("scanner can't handle {}", c));
                 }
             }
         }
+        Ok(())
     }
 
     fn is_alpha(c: char) -> bool {
@@ -239,7 +236,7 @@ impl<'a> Scanner<'a> {
         let literal_val = &self.source[self.start..self.current];
 
         match KEYWORDS.get(literal_val) {
-            Some(kw_token_type) => self.add_token(*kw_token_type),
+            Some(kw_token_type) => self.add_token(kw_token_type.to_owned()),
             None => self.add_token(TokenType::Identifier(literal_val)),
         };
     }
@@ -262,7 +259,7 @@ impl<'a> Scanner<'a> {
         self.add_token(TokenType::Number(val));
     }
 
-    fn string(&mut self) {
+    fn string(&mut self) -> Result<()> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1
@@ -271,7 +268,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            self.err = Some(format!("Unterminated string at line {}", self.line))
+            return Err(anyhow!("Unterminated string at line {}", self.line));
         }
 
         assert!(self.peek() == '"');
@@ -281,6 +278,7 @@ impl<'a> Scanner<'a> {
         self.add_token(TokenType::String(
             &self.source[self.start + 1..self.current - 1],
         ));
+        Ok(())
     }
 
     fn peek_next(&self) -> char {
@@ -322,10 +320,6 @@ impl<'a> Scanner<'a> {
             line: self.line,
             col: self.col,
         })
-    }
-
-    fn done(&self) -> bool {
-        self.err.is_some() || self.is_at_end()
     }
 
     fn is_at_end(&self) -> bool {

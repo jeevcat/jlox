@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 phf = {version = "0.10", features = ["macros"]}
+anyhow = "1"
+log = "0.4"
+pretty_env_logger = "0.4"

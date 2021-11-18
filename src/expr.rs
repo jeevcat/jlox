@@ -1,7 +1,7 @@
 use crate::scanner::Token;
 use std::fmt::{self, Debug, Write};
 
-enum Expr<'a> {
+pub enum Expr<'a> {
     Binary {
         left: Box<Expr<'a>>,
         operator: Token<'a>,
@@ -41,7 +41,7 @@ fn parenthesize(f: &mut fmt::Formatter, name: &str, exprs: &[&Expr]) -> fmt::Res
     Ok(())
 }
 
-enum Literal<'a> {
+pub enum Literal<'a> {
     Number(f64),
     String(&'a str),
     True,
