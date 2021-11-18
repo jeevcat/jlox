@@ -1,4 +1,5 @@
-use crate::scanner::Token;
+use crate::scanner::{Token, TokenType};
+use anyhow::{anyhow, Result};
 use std::fmt::{self, Debug, Write};
 
 pub enum Expr<'a> {
@@ -39,6 +40,141 @@ fn parenthesize(f: &mut fmt::Formatter, name: &str, exprs: &[&Expr]) -> fmt::Res
     }
     f.write_char(')')?;
     Ok(())
+}
+
+pub enum Value {
+    Nil,
+    Boolean(bool),
+    Number(f64),
+    String(String),
+}
+
+impl Value {
+    fn is_truthy(&self) -> bool {
+        match self {
+            Value::Nil => false,
+            Value::Boolean(b) => *b,
+            _ => true,
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Boolean(l), Self::Boolean(r)) => l == r,
+            (Self::Number(l), Self::Number(r)) => l == r,
+            (Self::String(l), Self::String(r)) => l == r,
+            (Self::Nil, Self::Nil) => true,
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Nil => write!(f, "nil"),
+            Value::Boolean(b) => std::fmt::Display::fmt(&b, f),
+            Value::Number(n) => std::fmt::Display::fmt(&n, f),
+            Value::String(s) => f.write_str(s),
+        }
+    }
+}
+
+fn error_number() -> anyhow::Error {
+    anyhow!("Operand must be a number.")
+}
+
+impl<'a> Expr<'a> {
+    pub fn interpret(&self) -> Result<Value> {
+        match self {
+            Expr::Binary {
+                left,
+                operator,
+                right,
+            } => {
+                let left = left.interpret()?;
+                let right = right.interpret()?;
+
+                match operator.token_type {
+                    TokenType::Minus => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Number(left - right))
+                        }
+                        _ => Err(error_number()),
+                    },
+                    TokenType::Slash => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Number(left / right))
+                        }
+                        _ => Err(error_number()),
+                    },
+                    TokenType::Star => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Number(left * right))
+                        }
+                        _ => Err(error_number()),
+                    },
+                    TokenType::Plus => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Number(left + right))
+                        }
+                        (Value::String(left), Value::String(right)) => {
+                            Ok(Value::String(format!("{}{}", left, right)))
+                        }
+                        _ => Err(anyhow!("Operands must be two numbers or two strings.")),
+                    },
+                    TokenType::Greater => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Boolean(left > right))
+                        }
+                        _ => Err(error_number()),
+                    },
+                    TokenType::GreaterEqual => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Boolean(left >= right))
+                        }
+                        _ => Err(error_number()),
+                    },
+                    TokenType::Less => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Boolean(left < right))
+                        }
+                        _ => Err(error_number()),
+                    },
+                    TokenType::LessEqual => match (left, right) {
+                        (Value::Number(left), Value::Number(right)) => {
+                            Ok(Value::Boolean(left <= right))
+                        }
+                        _ => Err(error_number()),
+                    },
+                    TokenType::BangEqual => Ok(Value::Boolean(left != right)),
+                    TokenType::EqualEqual => Ok(Value::Boolean(left == right)),
+                    _ => unreachable!(),
+                }
+            }
+            Expr::Grouping(g) => g.interpret(),
+            Expr::Unary { operator, right } => {
+                let right = right.interpret()?;
+                match operator.token_type {
+                    TokenType::Minus => match right {
+                        Value::Number(n) => Ok(Value::Number(-n)),
+                        _ => Err(error_number()),
+                    },
+                    TokenType::Bang => Ok(Value::Boolean(!right.is_truthy())),
+                    _ => unreachable!(),
+                }
+            }
+            Expr::Literal(literal) => Ok(match literal {
+                Literal::Number(n) => Value::Number(*n),
+                Literal::String(s) => Value::String(s.to_string()),
+                Literal::True => Value::Boolean(true),
+                Literal::False => Value::Boolean(false),
+                Literal::Nil => Value::Nil,
+            }),
+        }
+    }
 }
 
 pub enum Literal<'a> {

@@ -50,7 +50,11 @@ fn run(source: &str) {
             let expression = parser.parse();
             match expression {
                 Ok(expression) => {
-                    dbg!(expression);
+                    let val = expression.interpret();
+                    match val {
+                        Ok(val) => println!("{}", val),
+                        Err(e) => error!("{}", e),
+                    }
                 }
                 Err(e) => {
                     error!("{}", e);
