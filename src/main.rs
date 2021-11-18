@@ -5,6 +5,7 @@ use std::{
 };
 
 mod scanner;
+mod expr;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
