@@ -85,14 +85,14 @@ impl<'a> Parser<'a> {
 
     fn print_statement(&self) -> Result<Stmt> {
         let value = self.expression()?;
-        self.consume(&TokenType::Semicolon, "Expect ';' after value.")?;
+        self.consume(&TokenType::Semicolon, "Expect ';' after value")?;
         Ok(Stmt::Print(value))
     }
 
     fn expression_statement(&self) -> Result<Stmt> {
         let value = self.expression()?;
-        self.consume(&TokenType::Semicolon, "Expect ';' after value.")?;
-        Ok(Stmt::Print(value))
+        self.consume(&TokenType::Semicolon, "Expect ';' after expression")?;
+        Ok(Stmt::Expression(value))
     }
 
     fn expression(&self) -> Result<Expr> {
