@@ -41,8 +41,12 @@ impl Interpreter {
         }
     }
 
-    pub fn evaluate(&self, expression: &Expr) -> Result<Value> {
+    pub fn evaluate(&mut self, expression: &Expr) -> Result<Value> {
         match expression {
+            Expr::Assign { name, value } => {
+                let value = self.evaluate(value)?;
+                Ok(self.env.assign(name, value)?)
+            }
             Expr::Binary {
                 left,
                 operator,

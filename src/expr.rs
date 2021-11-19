@@ -1,8 +1,12 @@
 use crate::scanner::Token;
 
-use std::fmt::{self, Write};
+use std::fmt;
 
 pub enum Expr<'a> {
+    Assign {
+        name: Token<'a>,
+        value: Box<Expr<'a>>,
+    },
     Binary {
         left: Box<Expr<'a>>,
         operator: Token<'a>,
@@ -17,33 +21,6 @@ pub enum Expr<'a> {
     Variable {
         name: Token<'a>,
     },
-}
-
-impl<'a> fmt::Debug for Expr<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Binary {
-                left,
-                operator,
-                right,
-            } => parenthesize(f, operator.lexeme, &[left, right]),
-            Self::Grouping(expression) => parenthesize(f, "group", &[expression]),
-            Self::Unary { operator, right } => parenthesize(f, operator.lexeme, &[right]),
-            Self::Literal(literal) => literal.fmt(f),
-            Expr::Variable { name } => f.write_str(name.lexeme),
-        }
-    }
-}
-
-fn parenthesize(f: &mut fmt::Formatter, name: &str, exprs: &[&Expr]) -> fmt::Result {
-    f.write_char('(')?;
-    f.write_str(name)?;
-    for expr in exprs.iter() {
-        f.write_char(' ')?;
-        fmt::Debug::fmt(&expr, f)?;
-    }
-    f.write_char(')')?;
-    Ok(())
 }
 
 // Clone: often generated as result of expression, other times copied out of environment
@@ -111,53 +88,5 @@ impl<'a> fmt::Debug for Literal<'a> {
             Self::False => write!(f, "false"),
             Self::Nil => write!(f, "nil"),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        expr::{Expr, Literal},
-        scanner::{Token, TokenType},
-    };
-
-    #[test]
-    fn debug_print() {
-        let expr = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(1.))),
-            operator: Token {
-                token_type: TokenType::Plus,
-                lexeme: "+",
-                line: 1,
-                col: 0,
-            },
-            right: Box::new(Expr::Literal(Literal::Number(2.))),
-        };
-        assert_eq!(format!("{:?}", expr), "(+ 1.0 2.0)")
-    }
-
-    #[test]
-    fn debug_print2() {
-        let expr = Expr::Binary {
-            left: Box::new(Expr::Unary {
-                operator: Token {
-                    token_type: TokenType::Minus,
-                    lexeme: "-",
-                    line: 1,
-                    col: 0,
-                },
-                right: Box::new(Expr::Literal(Literal::Number(123.))),
-            }),
-            operator: Token {
-                token_type: TokenType::Star,
-                lexeme: "*",
-                line: 1,
-                col: 0,
-            },
-            right: Box::new(Expr::Grouping(Box::new(Expr::Literal(Literal::Number(
-                45.67,
-            ))))),
-        };
-        assert_eq!(format!("{:?}", expr), "(* (- 123.0) (group 45.67))")
     }
 }

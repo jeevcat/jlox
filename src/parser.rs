@@ -159,7 +159,28 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&self) -> Result<Expr> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&self) -> Result<Expr> {
+        let expr = self.equality()?;
+
+        if let Some(equals) = self.consume_matching(&[TokenType::Equal]) {
+            let value = self.assignment()?;
+
+            match expr {
+                Expr::Variable { name } => {
+                    return Ok(Expr::Assign {
+                        name,
+                        value: Box::new(value),
+                    })
+                }
+                _ => {
+                    self.error(equals, "Invalid assignment target");
+                }
+            }
+        }
+        Ok(expr)
     }
 
     fn equality(&self) -> Result<Expr> {

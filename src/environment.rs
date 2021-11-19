@@ -18,6 +18,16 @@ impl Environment {
         self.values.insert(name.to_owned(), value);
     }
 
+    pub fn assign(&mut self, name: &Token, value: Value) -> Result<Value> {
+        if self.values.contains_key(name.lexeme) {
+            self.values
+                .insert(name.lexeme.to_owned(), Some(value.clone()));
+            return Ok(value);
+        }
+
+        Err(anyhow!("Undefined variable '{}'", name.lexeme))
+    }
+
     pub fn get(&self, name: &Token) -> Result<Value> {
         self.get_internal(name.lexeme)
             .cloned()
