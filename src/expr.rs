@@ -14,6 +14,9 @@ pub enum Expr<'a> {
         right: Box<Expr<'a>>,
     },
     Literal(Literal<'a>),
+    Variable {
+        name: Token<'a>,
+    },
 }
 
 impl<'a> fmt::Debug for Expr<'a> {
@@ -27,6 +30,7 @@ impl<'a> fmt::Debug for Expr<'a> {
             Self::Grouping(expression) => parenthesize(f, "group", &[expression]),
             Self::Unary { operator, right } => parenthesize(f, operator.lexeme, &[right]),
             Self::Literal(literal) => literal.fmt(f),
+            Expr::Variable { name } => f.write_str(name.lexeme),
         }
     }
 }
@@ -173,6 +177,7 @@ impl<'a> Expr<'a> {
                 Literal::False => Value::Boolean(false),
                 Literal::Nil => Value::Nil,
             }),
+            Expr::Variable { name } => todo!(),
         }
     }
 }

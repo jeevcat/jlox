@@ -49,7 +49,7 @@ pub enum TokenType<'a> {
     LessEqual,
 
     // Literals.
-    Identifier(&'a str),
+    Identifier,
     String(&'a str),
     Number(f64),
 
@@ -237,7 +237,7 @@ impl<'a> Scanner<'a> {
 
         match KEYWORDS.get(literal_val) {
             Some(kw_token_type) => self.add_token(kw_token_type.to_owned()),
-            None => self.add_token(TokenType::Identifier(literal_val)),
+            None => self.add_token(TokenType::Identifier),
         };
     }
 

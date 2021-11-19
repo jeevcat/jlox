@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use log::error;
 use std::cell::Cell;
 
 use crate::{
@@ -27,7 +28,9 @@ impl<'a> Parser<'a> {
 
         let mut statements = vec![];
         while !self.is_at_end() {
-            statements.push(self.statement()?);
+            if let Some(statement) = self.declaration() {
+                statements.push(statement);
+            }
         }
         Ok(statements)
     }
@@ -74,6 +77,66 @@ impl<'a> Parser<'a> {
     fn peek(&self) -> &Token {
         // advance() won't allow going past end, so this is safe
         &self.tokens[self.current.get()]
+    }
+
+    fn synchronize(&self) {
+        let mut prev = self.advance();
+
+        while !self.is_at_end() {
+            if matches!(prev.token_type, TokenType::Semicolon) {
+                return;
+            }
+
+            match self.peek().token_type {
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Var
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Print
+                | TokenType::Return => return,
+                _ => {}
+            }
+
+            prev = self.advance();
+        }
+    }
+
+    // TODO: should this be returning an option?
+    fn declaration(&self) -> Option<Stmt> {
+        let result = if self.consume_matching(&[TokenType::Var]).is_some() {
+            self.variable_declaration()
+        } else {
+            self.statement()
+        };
+        match result {
+            Ok(s) => Some(s),
+            Err(e) => {
+                error!("{}", e);
+                self.synchronize();
+                None
+            }
+        }
+    }
+
+    fn variable_declaration(&self) -> Result<Stmt> {
+        let name = self.consume(&TokenType::Identifier, "Expect variable name")?;
+
+        let initializer = if self.consume_matching(&[TokenType::Equal]).is_some() {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(
+            &TokenType::Semicolon,
+            "Expect ';' after variable declaration",
+        )?;
+        Ok(Stmt::Var {
+            name: name.clone(),
+            initializer,
+        })
     }
 
     fn statement(&self) -> Result<Stmt> {
@@ -170,7 +233,8 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&self) -> Result<Expr> {
-        match &self.advance().token_type {
+        let token = self.advance();
+        match &token.token_type {
             TokenType::LeftParen => {
                 let expr = self.expression()?;
                 self.consume(&TokenType::RightParen, "Expect ')' after expression")?;
@@ -181,6 +245,9 @@ impl<'a> Parser<'a> {
             TokenType::False => Ok(Expr::Literal(Literal::False)),
             TokenType::Nil => Ok(Expr::Literal(Literal::Nil)),
             TokenType::True => Ok(Expr::Literal(Literal::True)),
+            TokenType::Identifier => Ok(Expr::Variable {
+                name: token.clone(),
+            }),
             _ => Err(self.error(self.peek(), "Expect expression")),
         }
     }

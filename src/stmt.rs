@@ -1,9 +1,13 @@
-use crate::expr::Expr;
+use crate::{expr::Expr, scanner::Token};
 use anyhow::Result;
 
 pub enum Stmt<'a> {
     Expression(Expr<'a>),
     Print(Expr<'a>),
+    Var {
+        name: Token<'a>,
+        initializer: Option<Expr<'a>>,
+    },
 }
 
 impl<'a> Stmt<'a> {
@@ -19,6 +23,7 @@ impl<'a> Stmt<'a> {
                 println!("{}", val);
                 Ok(())
             }
+            Stmt::Var { name, initializer } => todo!(),
         }
     }
 }
