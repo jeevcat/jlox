@@ -4,6 +4,7 @@ use std::cell::Cell;
 use crate::{
     expr::{Expr, Literal},
     scanner::{Token, TokenType},
+    stmt::Stmt,
 };
 
 pub struct Parser<'a> {
@@ -19,11 +20,16 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&self) -> Result<Expr> {
+    pub fn parse(&self) -> Result<Vec<Stmt>> {
         if self.tokens.is_empty() {
             return Err(anyhow!("No tokens provided"));
         }
-        self.expression()
+
+        let mut statements = vec![];
+        while !self.is_at_end() {
+            statements.push(self.statement()?);
+        }
+        Ok(statements)
     }
 
     fn advance(&self) -> &Token {
@@ -68,6 +74,25 @@ impl<'a> Parser<'a> {
     fn peek(&self) -> &Token {
         // advance() won't allow going past end, so this is safe
         &self.tokens[self.current.get()]
+    }
+
+    fn statement(&self) -> Result<Stmt> {
+        if self.consume_matching(&[TokenType::Print]).is_some() {
+            return self.print_statement();
+        }
+        self.expression_statement()
+    }
+
+    fn print_statement(&self) -> Result<Stmt> {
+        let value = self.expression()?;
+        self.consume(&TokenType::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Print(value))
+    }
+
+    fn expression_statement(&self) -> Result<Stmt> {
+        let value = self.expression()?;
+        self.consume(&TokenType::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Print(value))
     }
 
     fn expression(&self) -> Result<Expr> {
@@ -163,14 +188,14 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parser::Parser, scanner::scan_tokens};
+    use crate::{parser::Parser, scanner::scan_tokens, stmt::Stmt};
 
     #[test]
     fn parse() {
-        let input = "(1 + 2 * -3 - 4";
+        let input = "print (1 + 2 * -3 - 4);";
         let tokens = scan_tokens(input).unwrap();
         let parser = Parser::new(tokens);
-        let expr = parser.parse();
-        dbg!(expr.unwrap());
+        let statements = parser.parse().unwrap();
+        assert!(matches!(statements[0], Stmt::Print(_)));
     }
 }

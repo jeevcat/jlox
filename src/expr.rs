@@ -87,15 +87,15 @@ fn error_number() -> anyhow::Error {
 }
 
 impl<'a> Expr<'a> {
-    pub fn interpret(&self) -> Result<Value> {
+    pub fn evaluate(&self) -> Result<Value> {
         match self {
             Expr::Binary {
                 left,
                 operator,
                 right,
             } => {
-                let left = left.interpret()?;
-                let right = right.interpret()?;
+                let left = left.evaluate()?;
+                let right = right.evaluate()?;
 
                 match operator.token_type {
                     TokenType::Minus => match (left, right) {
@@ -154,9 +154,9 @@ impl<'a> Expr<'a> {
                     _ => unreachable!(),
                 }
             }
-            Expr::Grouping(g) => g.interpret(),
+            Expr::Grouping(g) => g.evaluate(),
             Expr::Unary { operator, right } => {
-                let right = right.interpret()?;
+                let right = right.evaluate()?;
                 match operator.token_type {
                     TokenType::Minus => match right {
                         Value::Number(n) => Ok(Value::Number(-n)),

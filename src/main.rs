@@ -9,6 +9,7 @@ use log::error;
 mod expr;
 mod parser;
 mod scanner;
+mod stmt;
 
 fn main() {
     pretty_env_logger::init();
@@ -24,7 +25,6 @@ fn main() {
 }
 
 fn run_file(path: &str) {
-    dbg!(path);
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     run(&contents);
 }
@@ -47,13 +47,15 @@ fn run(source: &str) {
     match tokens {
         Ok(tokens) => {
             let parser = parser::Parser::new(tokens);
-            let expression = parser.parse();
-            match expression {
-                Ok(expression) => {
-                    let val = expression.interpret();
-                    match val {
-                        Ok(val) => println!("{}", val),
-                        Err(e) => error!("{}", e),
+            let statements = parser.parse();
+            match statements {
+                Ok(statements) => {
+                    for statement in statements {
+                        let val = statement.execute();
+                        match val {
+                            Ok(_) => {}
+                            Err(e) => error!("{}", e),
+                        }
                     }
                 }
                 Err(e) => {
