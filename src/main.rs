@@ -4,9 +4,12 @@ use std::{
     process,
 };
 
+use interpreter::Interpreter;
 use log::error;
 
+mod environment;
 mod expr;
+mod interpreter;
 mod parser;
 mod scanner;
 mod stmt;
@@ -26,11 +29,13 @@ fn main() {
 
 fn run_file(path: &str) {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    run(&contents);
+    let mut interpreter = Interpreter::new();
+    run(&mut interpreter, &contents);
 }
 
 fn run_prompt() {
     let stdin = io::stdin();
+    let mut interpreter = Interpreter::new();
     loop {
         print!("> ");
         io::stdout().flush().expect("flush failed!");
@@ -38,11 +43,11 @@ fn run_prompt() {
         stdin
             .read_line(&mut buf)
             .expect("Something went wrong reading from stdin");
-        run(buf.trim());
+        run(&mut interpreter, buf.trim());
     }
 }
 
-fn run(source: &str) {
+fn run(interpreter: &mut Interpreter, source: &str) {
     let tokens = scanner::scan_tokens(source);
     match tokens {
         Ok(tokens) => {
@@ -50,8 +55,8 @@ fn run(source: &str) {
             let statements = parser.parse();
             match statements {
                 Ok(statements) => {
-                    for statement in statements {
-                        let val = statement.execute();
+                    for statement in &statements {
+                        let val = interpreter.execute(statement);
                         match val {
                             Ok(_) => {}
                             Err(e) => error!("{}", e),

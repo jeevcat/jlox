@@ -1,6 +1,6 @@
-use crate::scanner::{Token, TokenType};
-use anyhow::{anyhow, Result};
-use std::fmt::{self, Debug, Write};
+use crate::scanner::Token;
+
+use std::fmt::{self, Write};
 
 pub enum Expr<'a> {
     Binary {
@@ -40,12 +40,14 @@ fn parenthesize(f: &mut fmt::Formatter, name: &str, exprs: &[&Expr]) -> fmt::Res
     f.write_str(name)?;
     for expr in exprs.iter() {
         f.write_char(' ')?;
-        expr.fmt(f)?;
+        fmt::Debug::fmt(&expr, f)?;
     }
     f.write_char(')')?;
     Ok(())
 }
 
+// Clone: often generated as result of expression, other times copied out of environment
+#[derive(Clone)]
 pub enum Value {
     Nil,
     Boolean(bool),
@@ -54,7 +56,7 @@ pub enum Value {
 }
 
 impl Value {
-    fn is_truthy(&self) -> bool {
+    pub fn is_truthy(&self) -> bool {
         match self {
             Value::Nil => false,
             Value::Boolean(b) => *b,
@@ -86,99 +88,9 @@ impl fmt::Display for Value {
     }
 }
 
-fn error_number() -> anyhow::Error {
-    anyhow!("Operand must be a number.")
-}
-
-impl<'a> Expr<'a> {
-    pub fn evaluate(&self) -> Result<Value> {
-        match self {
-            Expr::Binary {
-                left,
-                operator,
-                right,
-            } => {
-                let left = left.evaluate()?;
-                let right = right.evaluate()?;
-
-                match operator.token_type {
-                    TokenType::Minus => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Number(left - right))
-                        }
-                        _ => Err(error_number()),
-                    },
-                    TokenType::Slash => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Number(left / right))
-                        }
-                        _ => Err(error_number()),
-                    },
-                    TokenType::Star => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Number(left * right))
-                        }
-                        _ => Err(error_number()),
-                    },
-                    TokenType::Plus => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Number(left + right))
-                        }
-                        (Value::String(left), Value::String(right)) => {
-                            Ok(Value::String(format!("{}{}", left, right)))
-                        }
-                        _ => Err(anyhow!("Operands must be two numbers or two strings.")),
-                    },
-                    TokenType::Greater => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Boolean(left > right))
-                        }
-                        _ => Err(error_number()),
-                    },
-                    TokenType::GreaterEqual => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Boolean(left >= right))
-                        }
-                        _ => Err(error_number()),
-                    },
-                    TokenType::Less => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Boolean(left < right))
-                        }
-                        _ => Err(error_number()),
-                    },
-                    TokenType::LessEqual => match (left, right) {
-                        (Value::Number(left), Value::Number(right)) => {
-                            Ok(Value::Boolean(left <= right))
-                        }
-                        _ => Err(error_number()),
-                    },
-                    TokenType::BangEqual => Ok(Value::Boolean(left != right)),
-                    TokenType::EqualEqual => Ok(Value::Boolean(left == right)),
-                    _ => unreachable!(),
-                }
-            }
-            Expr::Grouping(g) => g.evaluate(),
-            Expr::Unary { operator, right } => {
-                let right = right.evaluate()?;
-                match operator.token_type {
-                    TokenType::Minus => match right {
-                        Value::Number(n) => Ok(Value::Number(-n)),
-                        _ => Err(error_number()),
-                    },
-                    TokenType::Bang => Ok(Value::Boolean(!right.is_truthy())),
-                    _ => unreachable!(),
-                }
-            }
-            Expr::Literal(literal) => Ok(match literal {
-                Literal::Number(n) => Value::Number(*n),
-                Literal::String(s) => Value::String(s.to_string()),
-                Literal::True => Value::Boolean(true),
-                Literal::False => Value::Boolean(false),
-                Literal::Nil => Value::Nil,
-            }),
-            Expr::Variable { name } => todo!(),
-        }
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(&self, f)
     }
 }
 
