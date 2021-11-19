@@ -140,16 +140,37 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&self) -> Result<Stmt> {
-        if self.consume_matching(&[TokenType::Print]).is_some() {
-            return self.print_statement();
+        // Similar to using consume_matching(), but using match. Need to make sure we call advance manually though.
+        match self.peek().token_type {
+            TokenType::Print => {
+                self.advance();
+                self.print_statement()
+            }
+            TokenType::LeftBrace => {
+                self.advance();
+                Ok(Stmt::Block(self.block()?))
+            }
+            _ => self.expression_statement(),
         }
-        self.expression_statement()
     }
 
     fn print_statement(&self) -> Result<Stmt> {
         let value = self.expression()?;
         self.consume(&TokenType::Semicolon, "Expect ';' after value")?;
         Ok(Stmt::Print(value))
+    }
+
+    fn block(&self) -> Result<Vec<Stmt>> {
+        let mut statements = vec![];
+
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            if let Some(declaration) = self.declaration() {
+                statements.push(declaration);
+            }
+        }
+
+        self.consume(&TokenType::RightBrace, "Expect '}' after block")?;
+        Ok(statements)
     }
 
     fn expression_statement(&self) -> Result<Stmt> {

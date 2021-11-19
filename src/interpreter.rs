@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     environment::Environment,
     expr::{Expr, Literal, Value},
@@ -7,13 +9,13 @@ use crate::{
 use anyhow::{anyhow, Result};
 
 pub struct Interpreter {
-    env: Environment,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            env: Environment::new(),
+            environment: Rc::new(RefCell::new(Environment::new())),
         }
     }
 
@@ -35,17 +37,37 @@ impl Interpreter {
                 } else {
                     None
                 };
-                self.env.define(name.lexeme, value);
+                self.environment.borrow_mut().define(name.lexeme, value);
                 Ok(())
             }
+            Stmt::Block(statements) => self.execute_block(
+                statements,
+                Environment::new_nested(self.environment.clone()),
+            ),
         }
+    }
+
+    fn execute_block(&mut self, statements: &[Stmt], environment: Environment) -> Result<()> {
+        let prev = self.environment.clone();
+        let execute_statements = || -> Result<()> {
+            self.environment = Rc::new(RefCell::new(environment));
+
+            for statement in statements {
+                self.execute(statement)?;
+            }
+            Ok(())
+        };
+        let result = execute_statements();
+        self.environment = prev;
+
+        result
     }
 
     pub fn evaluate(&mut self, expression: &Expr) -> Result<Value> {
         match expression {
             Expr::Assign { name, value } => {
                 let value = self.evaluate(value)?;
-                Ok(self.env.assign(name, value)?)
+                Ok(self.environment.borrow_mut().assign(name, value)?)
             }
             Expr::Binary {
                 left,
@@ -131,7 +153,7 @@ impl Interpreter {
                 Literal::False => Value::Boolean(false),
                 Literal::Nil => Value::Nil,
             }),
-            Expr::Variable { name } => self.env.get(name),
+            Expr::Variable { name } => Ok(self.environment.borrow().get(name)?),
         }
     }
 }
