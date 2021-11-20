@@ -206,7 +206,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&self) -> Result<Expr> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if let Some(equals) = self.consume_matching(&[TokenType::Equal]) {
             let value = self.assignment()?;
@@ -226,13 +226,39 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    fn or(&self) -> Result<Expr> {
+        let mut expr = self.and()?;
+        while let Some(operator) = self.consume_matching(&[TokenType::Or]) {
+            let right = Box::new(self.and()?);
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                operator: operator.clone(),
+                right,
+            };
+        }
+        Ok(expr)
+    }
+
+    fn and(&self) -> Result<Expr> {
+        let mut expr = self.equality()?;
+        while let Some(operator) = self.consume_matching(&[TokenType::Or]) {
+            let right = Box::new(self.equality()?);
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator: operator.clone(),
+                right,
+            };
+        }
+        Ok(expr)
+    }
+
     fn equality(&self) -> Result<Expr> {
         let mut expr = self.comparison()?;
         while let Some(operator) =
             self.consume_matching(&[TokenType::BangEqual, TokenType::EqualEqual])
         {
             let right = Box::new(self.comparison()?);
-            expr = Expr::Binary {
+            expr = Expr::Logical {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right,

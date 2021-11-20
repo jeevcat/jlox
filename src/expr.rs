@@ -13,11 +13,16 @@ pub enum Expr<'a> {
         right: Box<Expr<'a>>,
     },
     Grouping(Box<Expr<'a>>),
+    Literal(Literal<'a>),
+    Logical {
+        left: Box<Expr<'a>>,
+        operator: Token<'a>,
+        right: Box<Expr<'a>>,
+    },
     Unary {
         operator: Token<'a>,
         right: Box<Expr<'a>>,
     },
-    Literal(Literal<'a>),
     Variable {
         name: Token<'a>,
     },

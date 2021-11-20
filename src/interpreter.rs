@@ -147,6 +147,37 @@ impl Interpreter {
                 }
             }
             Expr::Grouping(g) => self.evaluate(g),
+            Expr::Literal(literal) => Ok(match literal {
+                Literal::Number(n) => Value::Number(*n),
+                Literal::String(s) => Value::String(s.to_string()),
+                Literal::True => Value::Boolean(true),
+                Literal::False => Value::Boolean(false),
+                Literal::Nil => Value::Nil,
+            }),
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                let left = self.evaluate(left)?;
+
+                match operator.token_type {
+                    TokenType::Or => {
+                        if left.is_truthy() {
+                            return Ok(left);
+                        } else {
+                        }
+                    }
+                    TokenType::And => {
+                        if !left.is_truthy() {
+                            return Ok(left);
+                        } else {
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                self.evaluate(right)
+            }
             Expr::Unary { operator, right } => {
                 let right = self.evaluate(right)?;
                 match operator.token_type {
@@ -158,13 +189,6 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
-            Expr::Literal(literal) => Ok(match literal {
-                Literal::Number(n) => Value::Number(*n),
-                Literal::String(s) => Value::String(s.to_string()),
-                Literal::True => Value::Boolean(true),
-                Literal::False => Value::Boolean(false),
-                Literal::Nil => Value::Nil,
-            }),
             Expr::Variable { name } => Ok(self.environment.borrow().get(name)?),
         }
     }
