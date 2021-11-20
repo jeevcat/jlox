@@ -140,8 +140,13 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&self) -> Result<Stmt> {
-        // Similar to using consume_matching(), but using match. Need to make sure we call advance manually though.
+        // Similar to using consume_matching(), but using match. Need to make sure we
+        // call advance manually though.
         match self.peek().token_type {
+            TokenType::For => {
+                self.advance();
+                self.for_statement()
+            }
             TokenType::If => {
                 self.advance();
                 self.if_statement()
@@ -160,6 +165,57 @@ impl<'a> Parser<'a> {
             }
             _ => self.expression_statement(),
         }
+    }
+
+    fn for_statement(&self) -> Result<Stmt> {
+        self.consume(&TokenType::LeftParen, "Expect '(' after 'for'")?;
+
+        let initializer = match self.peek().token_type {
+            TokenType::Semicolon => {
+                self.advance();
+                None
+            }
+            TokenType::Var => {
+                self.advance();
+                Some(self.variable_declaration()?)
+            }
+            _ => Some(self.expression_statement()?),
+        };
+
+        let condition = match self.peek().token_type {
+            // If coniditon is omitted, we jam in `true` to make an infinite loop
+            TokenType::Semicolon => Expr::Literal(Literal::True),
+            _ => self.expression()?,
+        };
+        self.consume(&TokenType::Semicolon, "Expect ';' after loop condition")?;
+
+        let increment = match self.peek().token_type {
+            TokenType::RightParen => None,
+            _ => Some(self.expression()?),
+        };
+        self.consume(&TokenType::RightParen, "Expect ')' after for clauses")?;
+
+        let mut body = self.statement()?;
+
+        // Desugar to while loop
+        if let Some(increment) = increment {
+            // Replace the body with a little block that contains the original body followed
+            // by an expression statement that evaluates the increment
+            body = Stmt::Block(vec![body, Stmt::Expression(increment)]);
+        }
+
+        body = Stmt::While {
+            condition,
+            body: Box::new(body),
+        };
+
+        if let Some(initializer) = initializer {
+            // Replace the whole statement with a block that runs the initializer and then
+            // executes the loop
+            body = Stmt::Block(vec![initializer, body]);
+        }
+
+        Ok(body)
     }
 
     fn if_statement(&self) -> Result<Stmt> {

@@ -28,7 +28,8 @@ pub enum Expr<'a> {
     },
 }
 
-// Clone: often generated as result of expression, other times copied out of environment
+// Clone: often generated as result of expression, other times copied out of
+// environment
 #[derive(Clone)]
 pub enum Value {
     Nil,
