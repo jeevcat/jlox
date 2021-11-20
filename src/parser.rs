@@ -142,6 +142,10 @@ impl<'a> Parser<'a> {
     fn statement(&self) -> Result<Stmt> {
         // Similar to using consume_matching(), but using match. Need to make sure we call advance manually though.
         match self.peek().token_type {
+            TokenType::If => {
+                self.advance();
+                self.if_statement()
+            }
             TokenType::Print => {
                 self.advance();
                 self.print_statement()
@@ -152,6 +156,24 @@ impl<'a> Parser<'a> {
             }
             _ => self.expression_statement(),
         }
+    }
+
+    fn if_statement(&self) -> Result<Stmt> {
+        self.consume(&TokenType::LeftParen, "Expect '(' after 'if'")?;
+        let condition = self.expression()?;
+        self.consume(&TokenType::RightParen, "Expect ')' after if condition")?;
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if self.consume_matching(&[TokenType::Else]).is_some() {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+        })
     }
 
     fn print_statement(&self) -> Result<Stmt> {
@@ -209,11 +231,11 @@ impl<'a> Parser<'a> {
         while let Some(operator) =
             self.consume_matching(&[TokenType::BangEqual, TokenType::EqualEqual])
         {
-            let right = self.comparison()?;
+            let right = Box::new(self.comparison()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
                 operator: operator.clone(),
-                right: Box::new(right),
+                right,
             };
         }
         Ok(expr)
@@ -227,11 +249,11 @@ impl<'a> Parser<'a> {
             TokenType::Less,
             TokenType::LessEqual,
         ]) {
-            let right = self.term()?;
+            let right = Box::new(self.term()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
-                operator: operator.to_owned(),
-                right: Box::new(right),
+                operator: operator.clone(),
+                right,
             };
         }
         Ok(expr)
@@ -240,11 +262,11 @@ impl<'a> Parser<'a> {
     fn term(&self) -> Result<Expr> {
         let mut expr = self.factor()?;
         while let Some(operator) = self.consume_matching(&[TokenType::Minus, TokenType::Plus]) {
-            let right = self.factor()?;
+            let right = Box::new(self.factor()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
-                operator: operator.to_owned(),
-                right: Box::new(right),
+                operator: operator.clone(),
+                right,
             };
         }
         Ok(expr)
@@ -253,11 +275,11 @@ impl<'a> Parser<'a> {
     fn factor(&self) -> Result<Expr> {
         let mut expr = self.unary()?;
         while let Some(operator) = self.consume_matching(&[TokenType::Slash, TokenType::Star]) {
-            let right = self.unary()?;
+            let right = Box::new(self.unary()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
-                operator: operator.to_owned(),
-                right: Box::new(right),
+                operator: operator.clone(),
+                right,
             };
         }
         Ok(expr)
@@ -265,10 +287,10 @@ impl<'a> Parser<'a> {
 
     fn unary(&self) -> Result<Expr> {
         if let Some(operator) = self.consume_matching(&[TokenType::Bang, TokenType::Minus]) {
-            let right = self.unary()?;
+            let right = Box::new(self.unary()?);
             return Ok(Expr::Unary {
-                operator: operator.to_owned(),
-                right: Box::new(right),
+                operator: operator.clone(),
+                right,
             });
         }
         self.primary()

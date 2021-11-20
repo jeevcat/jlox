@@ -2,6 +2,11 @@ use crate::{expr::Expr, scanner::Token};
 
 pub enum Stmt<'a> {
     Expression(Expr<'a>),
+    If {
+        condition: Expr<'a>,
+        then_branch: Box<Stmt<'a>>,
+        else_branch: Option<Box<Stmt<'a>>>,
+    },
     Print(Expr<'a>),
     Var {
         name: Token<'a>,

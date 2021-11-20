@@ -24,7 +24,7 @@ fn test2() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("jlox")?;
     cmd.arg(path);
     cmd.assert().success().stdout(
-r#"inner a
+        r#"inner a
 outer b
 global c
 outer a
