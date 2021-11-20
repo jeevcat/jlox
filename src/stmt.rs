@@ -8,6 +8,10 @@ pub enum Stmt<'a> {
         else_branch: Option<Box<Stmt<'a>>>,
     },
     Print(Expr<'a>),
+    While {
+        condition: Expr<'a>,
+        body: Box<Stmt<'a>>,
+    },
     Var {
         name: Token<'a>,
         initializer: Option<Expr<'a>>,

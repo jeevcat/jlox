@@ -146,6 +146,10 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.if_statement()
             }
+            TokenType::While => {
+                self.advance();
+                self.while_statement()
+            }
             TokenType::Print => {
                 self.advance();
                 self.print_statement()
@@ -174,6 +178,14 @@ impl<'a> Parser<'a> {
             then_branch,
             else_branch,
         })
+    }
+
+    fn while_statement(&self) -> Result<Stmt> {
+        self.consume(&TokenType::LeftParen, "Expect '(' after 'while'")?;
+        let condition = self.expression()?;
+        self.consume(&TokenType::RightParen, "Expect ')' after if condition")?;
+        let body = Box::new(self.statement()?);
+        Ok(Stmt::While { condition, body })
     }
 
     fn print_statement(&self) -> Result<Stmt> {
