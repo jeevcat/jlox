@@ -11,7 +11,7 @@ pub enum Stmt {
         else_branch: Option<Box<Stmt>>,
     },
     Print(Expr),
-    Return (Option<Expr>),
+    Return(Option<Expr>),
     While {
         condition: Expr,
         body: Box<Stmt>,

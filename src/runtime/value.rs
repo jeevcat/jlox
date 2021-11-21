@@ -43,10 +43,8 @@ impl fmt::Display for Value {
             Value::Boolean(b) => std::fmt::Display::fmt(&b, f),
             Value::Number(n) => std::fmt::Display::fmt(&n, f),
             Value::String(s) => f.write_str(s),
-            Value::NativeFunction { .. } => write!(f, "function"),
-            Value::Function(Function { declaration }) => {
-                write!(f, "<fn {}>", declaration.name)
-            }
+            Value::NativeFunction(func) => std::fmt::Display::fmt(func, f),
+            Value::Function(func) => std::fmt::Display::fmt(func, f),
         }
     }
 }

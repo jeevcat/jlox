@@ -34,6 +34,7 @@ impl Interpreter {
                     let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
                     Ok(Value::Number(since_the_epoch.as_secs_f64()))
                 },
+                name: "clock".to_string(),
             })),
         );
         let globals = Rc::new(RefCell::new(globals));
@@ -45,10 +46,9 @@ impl Interpreter {
     }
 
     pub fn execute(&mut self, statement: &Stmt) -> Result<()> {
-        if self.return_value.is_some()
-        {
+        if self.return_value.is_some() {
             // Unwind stack
-            return Ok(())
+            return Ok(());
         }
 
         match statement {
@@ -64,6 +64,7 @@ impl Interpreter {
             Stmt::FunctionDecl(declaration) => {
                 let function = Function {
                     declaration: declaration.clone(),
+                    closure: self.environment.clone(),
                 };
                 self.environment
                     .borrow_mut()
