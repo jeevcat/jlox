@@ -1,29 +1,64 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crate::{
-    environment::Environment,
-    expr::{Expr, Literal, Value},
-    scanner::TokenType,
-    stmt::Stmt,
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
 };
+
 use anyhow::{anyhow, Result};
 
+use super::{environment::Environment, function::Function, value::Value};
+use crate::{
+    ast::{
+        expr::{Expr, Literal},
+        stmt::Stmt,
+    },
+    runtime::function::{Callable, NativeFunction},
+    scanner::TokenType,
+};
+
 pub struct Interpreter {
+    pub globals: Rc<RefCell<Environment>>,
     environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
+        let mut globals = Environment::new();
+        globals.define(
+            "clock",
+            Some(Value::NativeFunction(NativeFunction {
+                arity: 0,
+                func: |_, _| {
+                    let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                    Ok(Value::Number(since_the_epoch.as_secs_f64()))
+                },
+            })),
+        );
+        let globals = Rc::new(RefCell::new(globals));
         Self {
-            environment: Rc::new(RefCell::new(Environment::new())),
+            environment: globals.clone(),
+            globals,
         }
     }
 
     pub fn execute(&mut self, statement: &Stmt) -> Result<()> {
         match statement {
+            Stmt::Block(statements) => self.execute_block(
+                statements,
+                Environment::with_enclosing(self.environment.clone()),
+            ),
             Stmt::Expression(expr) => {
                 self.evaluate(expr)?;
                 // Discard result of interpret
+                Ok(())
+            }
+            Stmt::FunctionDecl(declaration) => {
+                let function = Function {
+                    declaration: declaration.clone(),
+                };
+                self.environment
+                    .borrow_mut()
+                    .define(&declaration.name, Some(Value::Function(function)));
                 Ok(())
             }
             Stmt::If {
@@ -38,34 +73,30 @@ impl Interpreter {
                 }
                 Ok(())
             }
+            Stmt::Print(expr) => {
+                let val = self.evaluate(expr)?;
+                println!("{}", val);
+                Ok(())
+            }
+            Stmt::VarDecl { name, initializer } => {
+                let value = if let Some(i) = initializer {
+                    Some(self.evaluate(i)?)
+                } else {
+                    None
+                };
+                self.environment.borrow_mut().define(name, value);
+                Ok(())
+            }
             Stmt::While { condition, body } => {
                 while self.evaluate(condition)?.is_truthy() {
                     self.execute(body)?;
                 }
                 Ok(())
             }
-            Stmt::Print(expr) => {
-                let val = self.evaluate(expr)?;
-                println!("{}", val);
-                Ok(())
-            }
-            Stmt::Var { name, initializer } => {
-                let value = if let Some(i) = initializer {
-                    Some(self.evaluate(i)?)
-                } else {
-                    None
-                };
-                self.environment.borrow_mut().define(name.lexeme, value);
-                Ok(())
-            }
-            Stmt::Block(statements) => self.execute_block(
-                statements,
-                Environment::new_nested(self.environment.clone()),
-            ),
         }
     }
 
-    fn execute_block(&mut self, statements: &[Stmt], environment: Environment) -> Result<()> {
+    pub fn execute_block(&mut self, statements: &[Stmt], environment: Environment) -> Result<()> {
         let prev = self.environment.clone();
         let execute_statements = || -> Result<()> {
             self.environment = Rc::new(RefCell::new(environment));
@@ -95,7 +126,7 @@ impl Interpreter {
                 let left = self.evaluate(left)?;
                 let right = self.evaluate(right)?;
 
-                match operator.token_type {
+                match operator {
                     TokenType::Minus => match (left, right) {
                         (Value::Number(left), Value::Number(right)) => {
                             Ok(Value::Number(left - right))
@@ -152,6 +183,33 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
+            Expr::Call { callee, arguments } => {
+                let callee = self.evaluate(callee)?;
+                let mut result = vec![];
+                for argument in arguments {
+                    result.push(self.evaluate(argument)?);
+                }
+
+                let arity = match &callee {
+                    Value::NativeFunction(f) => f.get_arity(),
+                    Value::Function(f) => f.get_arity(),
+                    _ => return Err(anyhow!("Can only call functions and classes")),
+                };
+
+                if (arguments.len() as u8) != arity {
+                    return Err(anyhow!(
+                        "Expected {} arguments but got {}",
+                        arity,
+                        arguments.len()
+                    ));
+                }
+
+                match callee {
+                    Value::NativeFunction(f) => f.call(self, result),
+                    Value::Function(f) => f.call(self, result),
+                    _ => unreachable!(),
+                }
+            }
             Expr::Grouping(g) => self.evaluate(g),
             Expr::Literal(literal) => Ok(match literal {
                 Literal::Number(n) => Value::Number(*n),
@@ -167,7 +225,7 @@ impl Interpreter {
             } => {
                 let left = self.evaluate(left)?;
 
-                match operator.token_type {
+                match operator {
                     TokenType::Or => {
                         if left.is_truthy() {
                             return Ok(left);
@@ -186,7 +244,7 @@ impl Interpreter {
             }
             Expr::Unary { operator, right } => {
                 let right = self.evaluate(right)?;
-                match operator.token_type {
+                match operator {
                     TokenType::Minus => match right {
                         Value::Number(n) => Ok(Value::Number(-n)),
                         _ => Err(error_number()),
@@ -197,6 +255,12 @@ impl Interpreter {
             }
             Expr::Variable { name } => Ok(self.environment.borrow().get(name)?),
         }
+    }
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

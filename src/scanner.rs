@@ -1,6 +1,7 @@
+use std::fmt;
+
 use anyhow::{anyhow, Result};
 use phf::phf_map;
-use std::fmt;
 
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "and" => TokenType::And,
@@ -22,7 +23,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TokenType<'a> {
+pub enum TokenType {
     // Single-character tokens.
     LeftParen,
     RightParen,
@@ -50,7 +51,7 @@ pub enum TokenType<'a> {
 
     // Literals.
     Identifier,
-    String(&'a str),
+    String(String),
     Number(f64),
 
     // Keywords.
@@ -74,9 +75,8 @@ pub enum TokenType<'a> {
     Eof,
 }
 
-#[derive(Clone)]
 pub struct Token<'a> {
-    pub token_type: TokenType<'a>,
+    pub token_type: TokenType,
     pub lexeme: &'a str,
     pub line: usize,
     pub col: u32,
@@ -276,7 +276,7 @@ impl<'a> Scanner<'a> {
         self.advance();
 
         self.add_token(TokenType::String(
-            &self.source[self.start + 1..self.current - 1],
+            self.source[self.start + 1..self.current - 1].to_string(),
         ));
         Ok(())
     }
@@ -311,7 +311,7 @@ impl<'a> Scanner<'a> {
         true
     }
 
-    fn add_token(&mut self, token_type: TokenType<'a>) {
+    fn add_token(&mut self, token_type: TokenType) {
         let text = &self.source[self.start..self.current];
 
         self.tokens.push(Token {

@@ -1,7 +1,8 @@
-use anyhow::{anyhow, Result};
 use std::{cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
 
-use crate::{expr::Value, scanner::Token};
+use anyhow::{anyhow, Result};
+
+use super::value::Value;
 
 pub struct Environment {
     enclosing: Option<Rc<RefCell<Environment>>>,
@@ -16,7 +17,7 @@ impl Environment {
         }
     }
 
-    pub fn new_nested(enclosing: Rc<RefCell<Environment>>) -> Self {
+    pub fn with_enclosing(enclosing: Rc<RefCell<Environment>>) -> Self {
         Self {
             enclosing: Some(enclosing),
             values: HashMap::new(),
@@ -27,27 +28,26 @@ impl Environment {
         self.values.insert(name.to_owned(), value);
     }
 
-    pub fn assign(&mut self, name: &Token, value: Value) -> Result<Value> {
-        if self.values.contains_key(name.lexeme) {
-            self.values
-                .insert(name.lexeme.to_owned(), Some(value.clone()));
+    pub fn assign(&mut self, name: &str, value: Value) -> Result<Value> {
+        if self.values.contains_key(name) {
+            self.values.insert(name.to_owned(), Some(value.clone()));
             return Ok(value);
         }
         if let Some(enclosing) = &self.enclosing {
             return enclosing.deref().borrow_mut().assign(name, value);
         }
 
-        Err(anyhow!("Undefined variable '{}'", name.lexeme))
+        Err(anyhow!("Undefined variable '{}'", name))
     }
 
-    pub fn get(&self, name: &Token) -> Result<Value> {
-        if let Some(got) = self.get_internal(name.lexeme) {
+    pub fn get(&self, name: &str) -> Result<Value> {
+        if let Some(got) = self.get_internal(name) {
             return Ok(got.clone());
         }
         if let Some(enclosing) = &self.enclosing {
             return enclosing.deref().borrow().get(name);
         }
-        Err(anyhow!("Undefined variable '{}'", name.lexeme))
+        Err(anyhow!("Undefined variable '{}'", name))
     }
 
     fn get_internal(&self, name: &str) -> Option<&Value> {

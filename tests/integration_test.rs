@@ -1,5 +1,6 @@
-use assert_cmd::prelude::{CommandCargoExt, OutputAssertExt};
 use std::{path::PathBuf, process::Command};
+
+use assert_cmd::prelude::{CommandCargoExt, OutputAssertExt};
 
 #[test]
 fn test1() -> Result<(), Box<dyn std::error::Error>> {

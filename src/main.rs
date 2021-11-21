@@ -4,15 +4,13 @@ use std::{
     process,
 };
 
-use interpreter::Interpreter;
 use log::error;
+use runtime::interpreter::Interpreter;
 
-mod environment;
-mod expr;
-mod interpreter;
+mod ast;
 mod parser;
+mod runtime;
 mod scanner;
-mod stmt;
 
 fn main() {
     pretty_env_logger::init();

@@ -1,11 +1,14 @@
-use anyhow::{anyhow, Result};
-use log::error;
 use std::cell::Cell;
 
+use anyhow::{anyhow, Result};
+use log::error;
+
 use crate::{
-    expr::{Expr, Literal},
+    ast::{
+        expr::{Expr, Literal},
+        stmt::{FunctionDecl, Stmt},
+    },
     scanner::{Token, TokenType},
-    stmt::Stmt,
 };
 
 pub struct Parser<'a> {
@@ -105,10 +108,18 @@ impl<'a> Parser<'a> {
 
     // TODO: should this be returning an option?
     fn declaration(&self) -> Option<Stmt> {
-        let result = if self.consume_matching(&[TokenType::Var]).is_some() {
-            self.variable_declaration()
-        } else {
-            self.statement()
+        // Similar to using consume_matching(), but using match. Need to make sure we
+        // call advance manually though.
+        let result = match self.peek().token_type {
+            TokenType::Var => {
+                self.advance();
+                self.variable_declaration()
+            }
+            TokenType::Fun => {
+                self.advance();
+                self.function_declaration("function")
+            }
+            _ => self.statement(),
         };
         match result {
             Ok(s) => Some(s),
@@ -133,10 +144,45 @@ impl<'a> Parser<'a> {
             &TokenType::Semicolon,
             "Expect ';' after variable declaration",
         )?;
-        Ok(Stmt::Var {
-            name: name.clone(),
+        Ok(Stmt::VarDecl {
+            name: name.lexeme.to_string(),
             initializer,
         })
+    }
+
+    fn function_declaration(&self, kind: &str) -> Result<Stmt> {
+        let name = self
+            .consume(&TokenType::Identifier, &format!("Expect {} name", kind))?
+            .lexeme
+            .to_string();
+        self.consume(
+            &TokenType::LeftParen,
+            &format!("Expect '(' after {} name", kind),
+        )?;
+
+        let mut params = vec![];
+        if !self.check(&TokenType::RightParen) {
+            let mut first = true;
+            while first || self.consume_matching(&[TokenType::Comma]).is_some() {
+                if params.len() >= 255 {
+                    self.error(self.peek(), "Can't have more than 255 parameters");
+                }
+                params.push(
+                    self.consume(&TokenType::Identifier, "Expect parameter name")?
+                        .lexeme
+                        .to_string(),
+                );
+                first = false;
+            }
+        }
+        self.consume(&TokenType::RightParen, "Expect ')' after parameters")?;
+        self.consume(
+            &TokenType::LeftBrace,
+            &format!("Expect '{{' before {} body", kind),
+        )?;
+        let body = self.block()?;
+
+        Ok(Stmt::FunctionDecl(FunctionDecl { name, params, body }))
     }
 
     fn statement(&self) -> Result<Stmt> {
@@ -300,7 +346,7 @@ impl<'a> Parser<'a> {
             let right = Box::new(self.and()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
-                operator: operator.clone(),
+                operator: operator.token_type.clone(),
                 right,
             };
         }
@@ -313,7 +359,7 @@ impl<'a> Parser<'a> {
             let right = Box::new(self.equality()?);
             expr = Expr::Logical {
                 left: Box::new(expr),
-                operator: operator.clone(),
+                operator: operator.token_type.clone(),
                 right,
             };
         }
@@ -328,7 +374,7 @@ impl<'a> Parser<'a> {
             let right = Box::new(self.comparison()?);
             expr = Expr::Logical {
                 left: Box::new(expr),
-                operator: operator.clone(),
+                operator: operator.token_type.clone(),
                 right,
             };
         }
@@ -346,7 +392,7 @@ impl<'a> Parser<'a> {
             let right = Box::new(self.term()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
-                operator: operator.clone(),
+                operator: operator.token_type.clone(),
                 right,
             };
         }
@@ -359,7 +405,7 @@ impl<'a> Parser<'a> {
             let right = Box::new(self.factor()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
-                operator: operator.clone(),
+                operator: operator.token_type.clone(),
                 right,
             };
         }
@@ -372,7 +418,7 @@ impl<'a> Parser<'a> {
             let right = Box::new(self.unary()?);
             expr = Expr::Binary {
                 left: Box::new(expr),
-                operator: operator.clone(),
+                operator: operator.token_type.clone(),
                 right,
             };
         }
@@ -383,11 +429,47 @@ impl<'a> Parser<'a> {
         if let Some(operator) = self.consume_matching(&[TokenType::Bang, TokenType::Minus]) {
             let right = Box::new(self.unary()?);
             return Ok(Expr::Unary {
-                operator: operator.clone(),
+                operator: operator.token_type.clone(),
                 right,
             });
         }
-        self.primary()
+        self.call()
+    }
+
+    fn call(&self) -> Result<Expr> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.consume_matching(&[TokenType::LeftParen]).is_some() {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&'a self, callee: Expr) -> Result<Expr> {
+        let mut arguments = vec![];
+        if !self.check(&TokenType::RightParen) {
+            let mut first = true;
+            while first || self.consume_matching(&[TokenType::Comma]).is_some() {
+                if arguments.len() >= 255 {
+                    self.error(self.peek(), "Can't have more thant 255 arguments");
+                }
+                arguments.push(self.expression()?);
+                first = false;
+            }
+        }
+
+        let _paren = self.consume(&TokenType::RightParen, "Expect ')' after arguments")?;
+
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            //paren,
+            arguments,
+        })
     }
 
     fn primary(&self) -> Result<Expr> {
@@ -398,13 +480,13 @@ impl<'a> Parser<'a> {
                 self.consume(&TokenType::RightParen, "Expect ')' after expression")?;
                 Ok(Expr::Grouping(Box::new(expr)))
             }
-            TokenType::String(s) => Ok(Expr::Literal(Literal::String(s))),
+            TokenType::String(s) => Ok(Expr::Literal(Literal::String(s.clone()))),
             TokenType::Number(n) => Ok(Expr::Literal(Literal::Number(*n))),
             TokenType::False => Ok(Expr::Literal(Literal::False)),
             TokenType::Nil => Ok(Expr::Literal(Literal::Nil)),
             TokenType::True => Ok(Expr::Literal(Literal::True)),
             TokenType::Identifier => Ok(Expr::Variable {
-                name: token.clone(),
+                name: token.lexeme.to_string(),
             }),
             _ => Err(self.error(self.peek(), "Expect expression")),
         }
@@ -413,7 +495,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parser::Parser, scanner::scan_tokens, stmt::Stmt};
+    use crate::{ast::stmt::Stmt, parser::Parser, scanner::scan_tokens};
 
     #[test]
     fn parse() {

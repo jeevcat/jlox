@@ -1,32 +1,6 @@
-use crate::scanner::Token;
-
 use std::fmt;
 
-pub enum Expr<'a> {
-    Assign {
-        name: Token<'a>,
-        value: Box<Expr<'a>>,
-    },
-    Binary {
-        left: Box<Expr<'a>>,
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
-    },
-    Grouping(Box<Expr<'a>>),
-    Literal(Literal<'a>),
-    Logical {
-        left: Box<Expr<'a>>,
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
-    },
-    Unary {
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
-    },
-    Variable {
-        name: Token<'a>,
-    },
-}
+use super::function::{Function, NativeFunction};
 
 // Clone: often generated as result of expression, other times copied out of
 // environment
@@ -36,6 +10,8 @@ pub enum Value {
     Boolean(bool),
     Number(f64),
     String(String),
+    Function(Function),
+    NativeFunction(NativeFunction),
 }
 
 impl Value {
@@ -67,6 +43,10 @@ impl fmt::Display for Value {
             Value::Boolean(b) => std::fmt::Display::fmt(&b, f),
             Value::Number(n) => std::fmt::Display::fmt(&n, f),
             Value::String(s) => f.write_str(s),
+            Value::NativeFunction { .. } => write!(f, "function"),
+            Value::Function(Function { declaration }) => {
+                write!(f, "<fn {}>", declaration.name)
+            }
         }
     }
 }
@@ -74,25 +54,5 @@ impl fmt::Display for Value {
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         std::fmt::Display::fmt(&self, f)
-    }
-}
-
-pub enum Literal<'a> {
-    Number(f64),
-    String(&'a str),
-    True,
-    False,
-    Nil,
-}
-
-impl<'a> fmt::Debug for Literal<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Number(num) => num.fmt(f),
-            Self::String(str) => str.fmt(f),
-            Self::True => write!(f, "true"),
-            Self::False => write!(f, "false"),
-            Self::Nil => write!(f, "nil"),
-        }
     }
 }
