@@ -27,8 +27,11 @@ impl Callable for Function {
             environment.define(&self.declaration.params[i], Some(argument));
         }
 
+        let old_return_value = interpreter.return_value.clone();
         interpreter.execute_block(&self.declaration.body, environment)?;
-        Ok(Value::Nil)
+        let return_value = interpreter.return_value.clone();
+        interpreter.return_value = old_return_value;
+        Ok(return_value.unwrap_or(Value::Nil))
     }
 
     fn get_arity(&self) -> u8 {

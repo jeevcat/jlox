@@ -197,17 +197,21 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.if_statement()
             }
-            TokenType::While => {
+            TokenType::LeftBrace => {
                 self.advance();
-                self.while_statement()
+                Ok(Stmt::Block(self.block()?))
             }
             TokenType::Print => {
                 self.advance();
                 self.print_statement()
             }
-            TokenType::LeftBrace => {
+            TokenType::Return => {
                 self.advance();
-                Ok(Stmt::Block(self.block()?))
+                self.return_statement()
+            }
+            TokenType::While => {
+                self.advance();
+                self.while_statement()
             }
             _ => self.expression_statement(),
         }
@@ -288,6 +292,17 @@ impl<'a> Parser<'a> {
         self.consume(&TokenType::RightParen, "Expect ')' after if condition")?;
         let body = Box::new(self.statement()?);
         Ok(Stmt::While { condition, body })
+    }
+
+    fn return_statement(&self) -> Result<Stmt> {
+        let value = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(&TokenType::Semicolon, "Expect ';' after return value")?;
+        Ok(Stmt::Return(value))
     }
 
     fn print_statement(&self) -> Result<Stmt> {

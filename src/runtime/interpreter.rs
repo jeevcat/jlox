@@ -19,6 +19,8 @@ use crate::{
 pub struct Interpreter {
     pub globals: Rc<RefCell<Environment>>,
     environment: Rc<RefCell<Environment>>,
+    // Used to unwind call stack when nested return is called
+    pub return_value: Option<Value>,
 }
 
 impl Interpreter {
@@ -38,10 +40,17 @@ impl Interpreter {
         Self {
             environment: globals.clone(),
             globals,
+            return_value: None,
         }
     }
 
     pub fn execute(&mut self, statement: &Stmt) -> Result<()> {
+        if self.return_value.is_some()
+        {
+            // Unwind stack
+            return Ok(())
+        }
+
         match statement {
             Stmt::Block(statements) => self.execute_block(
                 statements,
@@ -76,6 +85,14 @@ impl Interpreter {
             Stmt::Print(expr) => {
                 let val = self.evaluate(expr)?;
                 println!("{}", val);
+                Ok(())
+            }
+            Stmt::Return(expr) => {
+                let value = match expr {
+                    Some(expr) => self.evaluate(expr)?,
+                    _ => Value::Nil,
+                };
+                self.return_value = Some(value);
                 Ok(())
             }
             Stmt::VarDecl { name, initializer } => {

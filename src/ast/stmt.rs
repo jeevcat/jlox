@@ -2,6 +2,7 @@ use super::expr::Expr;
 
 #[derive(Clone)]
 pub enum Stmt {
+    Block(Vec<Stmt>),
     Expression(Expr),
     FunctionDecl(FunctionDecl),
     If {
@@ -10,6 +11,7 @@ pub enum Stmt {
         else_branch: Option<Box<Stmt>>,
     },
     Print(Expr),
+    Return (Option<Expr>),
     While {
         condition: Expr,
         body: Box<Stmt>,
@@ -18,7 +20,6 @@ pub enum Stmt {
         name: String,
         initializer: Option<Expr>,
     },
-    Block(Vec<Stmt>),
 }
 
 #[derive(Clone)]
