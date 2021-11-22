@@ -50,6 +50,30 @@ impl Environment {
         Err(anyhow!("Undefined variable '{}'", name))
     }
 
+    pub fn get_at(&self, distance: u32, name: &str) -> Result<Value> {
+        if distance == 0 {
+            return self.get(name);
+        }
+        // The unwrap here is safe if we trust our resolver
+        self.enclosing
+            .as_deref()
+            .unwrap()
+            .borrow()
+            .get_at(distance - 1, name)
+    }
+
+    pub fn assign_at(&mut self, distance: u32, name: &str, value: Value) -> Result<Value> {
+        if distance == 0 {
+            return self.assign(name, value);
+        }
+        // The unwrap here is safe if we trust our resolver
+        self.enclosing
+            .as_deref()
+            .unwrap()
+            .borrow_mut()
+            .assign_at(distance - 1, name, value)
+    }
+
     fn get_internal(&self, name: &str) -> Option<&Value> {
         self.values.get(name)?.as_ref()
     }

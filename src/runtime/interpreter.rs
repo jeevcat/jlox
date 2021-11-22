@@ -14,7 +14,7 @@ use crate::{
         stmt::Stmt,
     },
     runtime::function::{Callable, NativeFunction},
-    scanner::TokenType,
+    scanner::{Number, TokenType},
 };
 
 pub struct Interpreter {
@@ -46,6 +46,13 @@ impl Interpreter {
             return_value: None,
             locals: HashMap::new(),
         }
+    }
+
+    pub fn interpret(&mut self, statements: &[Stmt]) -> Result<()> {
+        for statement in statements {
+            self.execute(statement)?;
+        }
+        Ok(())
     }
 
     pub fn execute(&mut self, statement: &Stmt) -> Result<()> {
@@ -91,8 +98,8 @@ impl Interpreter {
                 println!("{}", val);
                 Ok(())
             }
-            Stmt::Return(expr) => {
-                let value = match expr {
+            Stmt::Return { keyword: _, value } => {
+                let value = match value {
                     Some(expr) => self.evaluate(expr)?,
                     _ => Value::Nil,
                 };
@@ -137,7 +144,13 @@ impl Interpreter {
         match expression {
             Expr::Assign { name, value } => {
                 let value = self.evaluate(value)?;
-                Ok(self.environment.borrow_mut().assign(&name.lexeme, value)?)
+                Ok(if let Some(distance) = self.locals.get(expression) {
+                    self.environment
+                        .borrow_mut()
+                        .assign_at(*distance, &name.lexeme, value)?
+                } else {
+                    self.environment.borrow_mut().assign(&name.lexeme, value)?
+                })
             }
             Expr::Binary {
                 left,
@@ -234,7 +247,7 @@ impl Interpreter {
             }
             Expr::Grouping(g) => self.evaluate(g),
             Expr::Literal(literal) => Ok(match literal {
-                Literal::Number(n) => Value::Number(*n),
+                Literal::Number(Number(n)) => Value::Number(*n),
                 Literal::String(s) => Value::String(s.to_string()),
                 Literal::True => Value::Boolean(true),
                 Literal::False => Value::Boolean(false),
@@ -275,12 +288,20 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
-            Expr::Variable { name } => Ok(self.environment.borrow().get(&name.lexeme)?),
+            Expr::Variable { name } => Ok(self.lookup_variable(&name.lexeme, expression)?),
         }
     }
 
-    pub fn resolve(&self, expression: &Expr, depth: u32) {
+    pub fn resolve(&mut self, expression: &Expr, depth: u32) {
         self.locals.insert(expression.clone(), depth);
+    }
+
+    fn lookup_variable(&self, name: &str, expression: &Expr) -> Result<Value> {
+        if let Some(distance) = self.locals.get(expression) {
+            self.environment.borrow().get_at(*distance, name)
+        } else {
+            self.globals.borrow().get(name)
+        }
     }
 }
 

@@ -1,40 +1,56 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
-
 use crate::{
     ast::{
         expr::Expr,
         stmt::{FunctionDecl, Stmt},
     },
-    error::error,
+    error::report_error,
     runtime::interpreter::Interpreter,
     scanner::Token,
 };
 
-struct Resolver {
-    interpreter: Interpreter,
-    scopes: Vec<HashMap<String, bool>>,
+#[derive(PartialEq)]
+enum FunctionType {
+    None,
+    Function,
 }
 
-impl Resolver {
-    fn resolve_statement(&mut self, statement: &Stmt) -> Result<()> {
+pub struct Resolver<'a> {
+    interpreter: &'a mut Interpreter,
+    scopes: Vec<HashMap<String, bool>>,
+    current_function: FunctionType,
+}
+
+impl<'a> Resolver<'a> {
+    pub fn new(interpreter: &mut Interpreter) -> Resolver {
+        Resolver {
+            interpreter,
+            scopes: vec![],
+            current_function: FunctionType::None,
+        }
+    }
+
+    pub fn resolve_statements(&mut self, statements: &[Stmt]) {
+        for statement in statements {
+            self.resolve_statement(statement);
+        }
+    }
+
+    fn resolve_statement(&mut self, statement: &Stmt) {
         match statement {
             Stmt::Block(statements) => {
                 self.begin_scope();
-                self.resolve_statements(statements)?;
+                self.resolve_statements(statements);
                 self.end_scope();
-                Ok(())
             }
             Stmt::Expression(expression) => {
                 self.resolve_expression(expression);
-                Ok(())
             }
             Stmt::FunctionDecl(decl) => {
                 self.declare(&decl.name);
                 self.define(&decl.name);
-                self.resolve_function(decl);
-                Ok(())
+                self.resolve_function(decl, FunctionType::Function);
             }
             Stmt::If {
                 condition,
@@ -46,49 +62,45 @@ impl Resolver {
                 if let Some(else_branch) = else_branch {
                     self.resolve_statement(else_branch);
                 }
-                Ok(())
             }
             Stmt::Print(expression) => {
                 self.resolve_expression(expression);
-                Ok(())
             }
-            Stmt::Return(expression) => {
-                if let Some(expression) = expression {
+            Stmt::Return { keyword, value } => {
+                if let Some(expression) = value {
+                    if self.current_function == FunctionType::None {
+                        report_error(keyword, "Can't return from top-level code");
+                    }
                     self.resolve_expression(expression);
                 }
-                Ok(())
             }
             Stmt::While { condition, body } => {
                 self.resolve_expression(condition);
                 self.resolve_statement(body);
-                Ok(())
             }
             Stmt::VarDecl { name, initializer } => {
                 self.declare(name);
                 if let Some(initializer) = initializer {
-                    self.resolve_expression(initializer)?;
+                    self.resolve_expression(initializer);
                 }
                 self.define(name);
-                Ok(())
             }
         }
     }
 
-    fn resolve_expression(&mut self, expression: &Expr) -> Result<()> {
+    fn resolve_expression(&mut self, expression: &Expr) {
         match expression {
             Expr::Assign { name, value } => {
-                self.resolve_expression(value)?;
+                self.resolve_expression(value);
                 self.resolve_local(expression, name);
-                Ok(())
             }
             Expr::Binary {
                 left,
-                operator,
+                operator: _,
                 right,
             } => {
                 self.resolve_expression(left);
                 self.resolve_expression(right);
-                Ok(())
             }
             Expr::Call { callee, arguments } => {
                 self.resolve_expression(callee);
@@ -96,49 +108,33 @@ impl Resolver {
                 for argument in arguments {
                     self.resolve_expression(argument);
                 }
-
-                Ok(())
             }
             Expr::Grouping(expression) => {
                 self.resolve_expression(expression);
-                Ok(())
             }
-            Expr::Literal(_) => Ok(()),
+            Expr::Literal(_) => {}
             Expr::Logical {
                 left,
-                operator,
+                operator: _,
                 right,
             } => {
                 self.resolve_expression(left);
                 self.resolve_expression(right);
-                Ok(())
             }
-            Expr::Unary { operator, right } => {
+            Expr::Unary { operator: _, right } => {
                 self.resolve_expression(right);
-                Ok(())
             }
             Expr::Variable { name } => {
                 if let Some(top) = self.scopes.last() {
                     if let Some(is_defined) = top.get(&name.lexeme) {
                         if is_defined == &false {
-                            return Err(error(
-                                name,
-                                "Can't read local variable in its own initializer",
-                            ));
+                            report_error(name, "Can't read local variable in its own initializer");
                         }
                     }
                 }
                 self.resolve_local(expression, name);
-                Ok(())
             }
         }
-    }
-
-    fn resolve_statements(&mut self, statements: &[Stmt]) -> Result<()> {
-        for statement in statements {
-            self.resolve_statement(statement)?;
-        }
-        Ok(())
     }
 
     fn resolve_local(&mut self, expression: &Expr, name: &Token) {
@@ -150,7 +146,8 @@ impl Resolver {
         }
     }
 
-    fn resolve_function(&mut self, decl: &FunctionDecl) {
+    fn resolve_function(&mut self, decl: &FunctionDecl, func_type: FunctionType) {
+        let enclosing_function = std::mem::replace(&mut self.current_function, func_type);
         self.begin_scope();
         for name in &decl.params {
             self.declare(name);
@@ -158,6 +155,7 @@ impl Resolver {
         }
         self.resolve_statements(&decl.body);
         self.end_scope();
+        self.current_function = enclosing_function;
     }
 
     fn begin_scope(&mut self) {
@@ -170,6 +168,9 @@ impl Resolver {
 
     fn declare(&mut self, name: &Token) {
         if let Some(top) = self.scopes.last_mut() {
+            if top.contains_key(&name.lexeme) {
+                report_error(name, "Already a variable with this name in this scope");
+            }
             top.insert(name.lexeme.to_string(), false);
         }
     }

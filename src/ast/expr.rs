@@ -1,8 +1,8 @@
 use std::fmt;
 
-use crate::scanner::{Token, TokenType};
+use crate::scanner::{Number, Token, TokenType};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     Assign {
         name: Token,
@@ -33,9 +33,9 @@ pub enum Expr {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Literal {
-    Number(f64),
+    Number(Number),
     String(String),
     True,
     False,

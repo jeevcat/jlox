@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, hash::Hash};
 
 use anyhow::{anyhow, Result};
 use phf::phf_map;
@@ -22,7 +22,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "while" => TokenType::While,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,
@@ -52,7 +52,7 @@ pub enum TokenType {
     // Literals.
     Identifier,
     String(String),
-    Number(f64),
+    Number(Number),
 
     // Keywords.
     And,
@@ -75,7 +75,26 @@ pub enum TokenType {
     Eof,
 }
 
-#[derive(Clone)]
+// We will get lots of equality and hashing issues with NaNs, but for us this is
+// acceptable?
+#[derive(Debug, Clone, Copy)]
+pub struct Number(pub f64);
+
+impl PartialEq for Number {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_bits() == other.0.to_bits()
+    }
+}
+
+impl Eq for Number {}
+
+impl Hash for Number {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state);
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -257,7 +276,7 @@ impl<'a> Scanner<'a> {
 
         let val: f64 = self.source[self.start..self.current].parse().unwrap();
 
-        self.add_token(TokenType::Number(val));
+        self.add_token(TokenType::Number(Number(val)));
     }
 
     fn string(&mut self) -> Result<()> {

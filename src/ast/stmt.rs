@@ -12,7 +12,10 @@ pub enum Stmt {
         else_branch: Option<Box<Stmt>>,
     },
     Print(Expr),
-    Return(Option<Expr>),
+    Return {
+        keyword: Token,
+        value: Option<Expr>,
+    },
     While {
         condition: Expr,
         body: Box<Stmt>,

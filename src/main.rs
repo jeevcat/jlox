@@ -4,8 +4,11 @@ use std::{
     process,
 };
 
+use anyhow::Result;
 use log::error;
 use runtime::interpreter::Interpreter;
+
+use crate::resolver::Resolver;
 
 mod ast;
 mod error;
@@ -30,7 +33,7 @@ fn main() {
 fn run_file(path: &str) {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     let mut interpreter = Interpreter::new();
-    run(&mut interpreter, &contents);
+    run_errored(&mut interpreter, &contents);
 }
 
 fn run_prompt() {
@@ -43,33 +46,25 @@ fn run_prompt() {
         stdin
             .read_line(&mut buf)
             .expect("Something went wrong reading from stdin");
-        run(&mut interpreter, buf.trim());
+        run_errored(&mut interpreter, buf.trim());
     }
 }
 
-fn run(interpreter: &mut Interpreter, source: &str) {
-    let tokens = scanner::scan_tokens(source);
-    match tokens {
-        Ok(tokens) => {
-            let parser = parser::Parser::new(tokens);
-            let statements = parser.parse();
-            match statements {
-                Ok(statements) => {
-                    for statement in &statements {
-                        let val = interpreter.execute(statement);
-                        match val {
-                            Ok(_) => {}
-                            Err(e) => error!("{}", e),
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("{}", e);
-                }
-            }
-        }
+fn run_errored(interpreter: &mut Interpreter, source: &str) {
+    match run(interpreter, source) {
+        Ok(_) => {}
         Err(e) => {
             error!("{}", e);
         }
     }
+}
+
+fn run(interpreter: &mut Interpreter, source: &str) -> Result<()> {
+    let tokens = scanner::scan_tokens(source)?;
+    let parser = parser::Parser::new(tokens);
+    let statements = parser.parse()?;
+    let mut resolver = Resolver::new(interpreter);
+    resolver.resolve_statements(&statements);
+    interpreter.interpret(&statements)?;
+    Ok(())
 }

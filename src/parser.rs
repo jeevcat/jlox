@@ -8,7 +8,7 @@ use crate::{
         expr::{Expr, Literal},
         stmt::{FunctionDecl, Stmt},
     },
-    error::error,
+    error::make_error,
     scanner::{Token, TokenType},
 };
 
@@ -60,7 +60,7 @@ impl Parser {
         if self.check(token_type) {
             return Ok(self.advance());
         }
-        Err(error(self.peek(), message))
+        Err(make_error(self.peek(), message))
     }
 
     fn check(&self, token_type: &TokenType) -> bool {
@@ -158,7 +158,7 @@ impl Parser {
             let mut first = true;
             while first || self.consume_matching(&[TokenType::Comma]).is_some() {
                 if params.len() >= 255 {
-                    error(self.peek(), "Can't have more than 255 parameters");
+                    make_error(self.peek(), "Can't have more than 255 parameters");
                 }
                 params.push(
                     self.consume(&TokenType::Identifier, "Expect parameter name")?
@@ -294,7 +294,10 @@ impl Parser {
         };
 
         self.consume(&TokenType::Semicolon, "Expect ';' after return value")?;
-        Ok(Stmt::Return(value))
+        Ok(Stmt::Return {
+            value,
+            keyword: self.peek().clone(),
+        })
     }
 
     fn print_statement(&self) -> Result<Stmt> {
@@ -340,7 +343,7 @@ impl Parser {
                     })
                 }
                 _ => {
-                    error(equals, "Invalid assignment target");
+                    make_error(equals, "Invalid assignment target");
                 }
             }
         }
@@ -463,7 +466,7 @@ impl Parser {
             let mut first = true;
             while first || self.consume_matching(&[TokenType::Comma]).is_some() {
                 if arguments.len() >= 255 {
-                    error(self.peek(), "Can't have more thant 255 arguments");
+                    make_error(self.peek(), "Can't have more thant 255 arguments");
                 }
                 arguments.push(self.expression()?);
                 first = false;
@@ -495,7 +498,7 @@ impl Parser {
             TokenType::Identifier => Ok(Expr::Variable {
                 name: token.clone(),
             }),
-            _ => Err(error(self.peek(), "Expect expression")),
+            _ => Err(make_error(self.peek(), "Expect expression")),
         }
     }
 }
