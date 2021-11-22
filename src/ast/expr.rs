@@ -1,11 +1,11 @@
 use std::fmt;
 
-use crate::scanner::TokenType;
+use crate::scanner::{Token, TokenType};
 
 #[derive(Clone)]
 pub enum Expr {
     Assign {
-        name: String,
+        name: Token,
         value: Box<Expr>,
     },
     Binary {
@@ -29,7 +29,7 @@ pub enum Expr {
         right: Box<Expr>,
     },
     Variable {
-        name: String,
+        name: Token,
     },
 }
 

@@ -75,14 +75,15 @@ pub enum TokenType {
     Eof,
 }
 
-pub struct Token<'a> {
+#[derive(Clone)]
+pub struct Token {
     pub token_type: TokenType,
-    pub lexeme: &'a str,
+    pub lexeme: String,
     pub line: usize,
     pub col: u32,
 }
 
-impl<'a> fmt::Debug for Token<'a> {
+impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -109,7 +110,7 @@ pub fn scan_tokens(input: &str) -> Result<Vec<Token>> {
 
 struct Scanner<'a> {
     source: &'a str,
-    tokens: Vec<Token<'a>>,
+    tokens: Vec<Token>,
     start: usize,
     current: usize,
     line: usize,
@@ -125,7 +126,7 @@ impl<'a> Scanner<'a> {
 
         self.tokens.push(Token {
             token_type: TokenType::Eof,
-            lexeme: "",
+            lexeme: String::new(),
             line: self.line,
             col: self.col,
         });
@@ -316,7 +317,7 @@ impl<'a> Scanner<'a> {
 
         self.tokens.push(Token {
             token_type,
-            lexeme: text,
+            lexeme: text.to_string(),
             line: self.line,
             col: self.col,
         })

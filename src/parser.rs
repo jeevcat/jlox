@@ -8,15 +8,16 @@ use crate::{
         expr::{Expr, Literal},
         stmt::{FunctionDecl, Stmt},
     },
+    error::error,
     scanner::{Token, TokenType},
 };
 
-pub struct Parser<'a> {
-    tokens: Vec<Token<'a>>,
+pub struct Parser {
+    tokens: Vec<Token>,
     current: Cell<usize>,
 }
 
-impl<'a> Parser<'a> {
+impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser {
             tokens,
@@ -59,14 +60,7 @@ impl<'a> Parser<'a> {
         if self.check(token_type) {
             return Ok(self.advance());
         }
-        Err(self.error(self.peek(), message))
-    }
-
-    fn error(&self, token: &Token, message: &str) -> anyhow::Error {
-        match token.token_type {
-            TokenType::Eof => (anyhow!("{} at end", message)),
-            _ => (anyhow!("{} at '{}'", message, self.peek().lexeme)),
-        }
+        Err(error(self.peek(), message))
     }
 
     fn check(&self, token_type: &TokenType) -> bool {
@@ -145,7 +139,7 @@ impl<'a> Parser<'a> {
             "Expect ';' after variable declaration",
         )?;
         Ok(Stmt::VarDecl {
-            name: name.lexeme.to_string(),
+            name: name.clone(),
             initializer,
         })
     }
@@ -153,8 +147,7 @@ impl<'a> Parser<'a> {
     fn function_declaration(&self, kind: &str) -> Result<Stmt> {
         let name = self
             .consume(&TokenType::Identifier, &format!("Expect {} name", kind))?
-            .lexeme
-            .to_string();
+            .clone();
         self.consume(
             &TokenType::LeftParen,
             &format!("Expect '(' after {} name", kind),
@@ -165,12 +158,11 @@ impl<'a> Parser<'a> {
             let mut first = true;
             while first || self.consume_matching(&[TokenType::Comma]).is_some() {
                 if params.len() >= 255 {
-                    self.error(self.peek(), "Can't have more than 255 parameters");
+                    error(self.peek(), "Can't have more than 255 parameters");
                 }
                 params.push(
                     self.consume(&TokenType::Identifier, "Expect parameter name")?
-                        .lexeme
-                        .to_string(),
+                        .clone(),
                 );
                 first = false;
             }
@@ -348,7 +340,7 @@ impl<'a> Parser<'a> {
                     })
                 }
                 _ => {
-                    self.error(equals, "Invalid assignment target");
+                    error(equals, "Invalid assignment target");
                 }
             }
         }
@@ -465,13 +457,13 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn finish_call(&'a self, callee: Expr) -> Result<Expr> {
+    fn finish_call(&self, callee: Expr) -> Result<Expr> {
         let mut arguments = vec![];
         if !self.check(&TokenType::RightParen) {
             let mut first = true;
             while first || self.consume_matching(&[TokenType::Comma]).is_some() {
                 if arguments.len() >= 255 {
-                    self.error(self.peek(), "Can't have more thant 255 arguments");
+                    error(self.peek(), "Can't have more thant 255 arguments");
                 }
                 arguments.push(self.expression()?);
                 first = false;
@@ -501,9 +493,9 @@ impl<'a> Parser<'a> {
             TokenType::Nil => Ok(Expr::Literal(Literal::Nil)),
             TokenType::True => Ok(Expr::Literal(Literal::True)),
             TokenType::Identifier => Ok(Expr::Variable {
-                name: token.lexeme.to_string(),
+                name: token.clone(),
             }),
-            _ => Err(self.error(self.peek(), "Expect expression")),
+            _ => Err(error(self.peek(), "Expect expression")),
         }
     }
 }

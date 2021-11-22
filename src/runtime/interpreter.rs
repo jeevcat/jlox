@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -19,6 +20,7 @@ use crate::{
 pub struct Interpreter {
     pub globals: Rc<RefCell<Environment>>,
     environment: Rc<RefCell<Environment>>,
+    locals: HashMap<Expr, u32>,
     // Used to unwind call stack when nested return is called
     pub return_value: Option<Value>,
 }
@@ -42,6 +44,7 @@ impl Interpreter {
             environment: globals.clone(),
             globals,
             return_value: None,
+            locals: HashMap::new(),
         }
     }
 
@@ -68,7 +71,7 @@ impl Interpreter {
                 };
                 self.environment
                     .borrow_mut()
-                    .define(&declaration.name, Some(Value::Function(function)));
+                    .define(&declaration.name.lexeme, Some(Value::Function(function)));
                 Ok(())
             }
             Stmt::If {
@@ -102,7 +105,7 @@ impl Interpreter {
                 } else {
                     None
                 };
-                self.environment.borrow_mut().define(name, value);
+                self.environment.borrow_mut().define(&name.lexeme, value);
                 Ok(())
             }
             Stmt::While { condition, body } => {
@@ -134,7 +137,7 @@ impl Interpreter {
         match expression {
             Expr::Assign { name, value } => {
                 let value = self.evaluate(value)?;
-                Ok(self.environment.borrow_mut().assign(name, value)?)
+                Ok(self.environment.borrow_mut().assign(&name.lexeme, value)?)
             }
             Expr::Binary {
                 left,
@@ -214,7 +217,8 @@ impl Interpreter {
                     _ => return Err(anyhow!("Can only call functions and classes")),
                 };
 
-                if (arguments.len() as u8) != arity {
+                let num_args: u8 = arguments.len().try_into().unwrap();
+                if num_args != arity {
                     return Err(anyhow!(
                         "Expected {} arguments but got {}",
                         arity,
@@ -271,8 +275,12 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
-            Expr::Variable { name } => Ok(self.environment.borrow().get(name)?),
+            Expr::Variable { name } => Ok(self.environment.borrow().get(&name.lexeme)?),
         }
+    }
+
+    pub fn resolve(&self, expression: &Expr, depth: u32) {
+        self.locals.insert(expression.clone(), depth);
     }
 }
 

@@ -28,7 +28,7 @@ impl Callable for Function {
         let mut environment = Environment::with_enclosing(self.closure.clone());
 
         for (i, argument) in arguments.into_iter().enumerate() {
-            environment.define(&self.declaration.params[i], Some(argument));
+            environment.define(&self.declaration.params[i].lexeme, Some(argument));
         }
 
         let old_return_value = interpreter.return_value.clone();
@@ -39,7 +39,7 @@ impl Callable for Function {
     }
 
     fn get_arity(&self) -> u8 {
-        self.declaration.params.len() as u8
+        self.declaration.params.len().try_into().unwrap()
     }
 }
 
@@ -55,7 +55,7 @@ impl Callable for NativeFunction {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&format!("<fun {}>", self.declaration.name))
+        f.write_str(&format!("<fun {}>", self.declaration.name.lexeme))
     }
 }
 

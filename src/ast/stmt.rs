@@ -1,4 +1,5 @@
 use super::expr::Expr;
+use crate::scanner::Token;
 
 #[derive(Clone)]
 pub enum Stmt {
@@ -17,14 +18,14 @@ pub enum Stmt {
         body: Box<Stmt>,
     },
     VarDecl {
-        name: String,
+        name: Token,
         initializer: Option<Expr>,
     },
 }
 
 #[derive(Clone)]
 pub struct FunctionDecl {
-    pub name: String,
-    pub params: Vec<String>,
+    pub name: Token,
+    pub params: Vec<Token>,
     pub body: Vec<Stmt>,
 }

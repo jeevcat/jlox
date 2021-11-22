@@ -8,7 +8,9 @@ use log::error;
 use runtime::interpreter::Interpreter;
 
 mod ast;
+mod error;
 mod parser;
+mod resolver;
 mod runtime;
 mod scanner;
 
